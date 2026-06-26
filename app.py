@@ -375,21 +375,20 @@ elif page == "30-Day Forecast":
     st.pyplot(fig2)
     plt.close()
 
-    # Table
-    st.markdown('<div class="section-header">Forecast Values Table</div>',
+    # 30-day daily table only
+    st.markdown('<div class="section-header">30-Day Forecast Summary (Daily)</div>',
                 unsafe_allow_html=True)
-    col1, col2 = st.columns([2, 1])
-    with col1:
-        display = future_df[["Datetime","Forecast_MW"]].copy()
-        display["Datetime"] = display["Datetime"].dt.strftime("%Y-%m-%d %H:%M")
-        display["Forecast_MW"] = display["Forecast_MW"].round(2)
-        st.dataframe(display.rename(columns={"Datetime":"Datetime","Forecast_MW":"Forecast (MW)"}),
-                     use_container_width=True, hide_index=True, height=380)
-    with col2:
-        st.dataframe(daily.round(1), use_container_width=True, hide_index=True, height=380)
+    daily_display = daily.copy()
+    daily_display.index = range(1, len(daily_display) + 1)
+    daily_display.index.name = "Day"
+    daily_display["Avg MW"]   = daily_display["Avg MW"].round(1)
+    daily_display["Min MW"]   = daily_display["Min MW"].round(1)
+    daily_display["Max MW"]   = daily_display["Max MW"].round(1)
+    daily_display["Range MW"] = (daily_display["Max MW"] - daily_display["Min MW"]).round(1)
+    st.dataframe(daily_display, use_container_width=True, height=740)
 
-    csv = future_df[["Datetime","Forecast_MW"]].to_csv(index=False)
-    st.download_button("Download Forecast CSV", csv,
+    csv = daily_display.to_csv()
+    st.download_button("Download 30-Day Forecast CSV", csv,
                        "pjm_30day_forecast.csv", "text/csv")
 
 # ═══════════════════════════════════════════════════════════════════════════
