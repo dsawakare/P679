@@ -235,7 +235,7 @@ st.markdown(
     '<span class="tag">XGBoost</span>'
     '<span class="tag">Time-Series</span>'
     '<span class="tag">P679</span>'
-    '<span class="tag">Gajender Singh</span>',
+    '<span class="tag">Group 1</span>',
     unsafe_allow_html=True)
 st.markdown("<div style='margin-bottom:16px'></div>", unsafe_allow_html=True)
 
@@ -293,7 +293,10 @@ sty(ax_fc, fig_fc)
 st.pyplot(fig_fc, use_container_width=True)
 plt.close()
 
-# ── Table + Daily bar side by side ───────────────────────────────────────────
+# ── Table + Daily bar side by side — FIXED equal height ──────────────────────
+FIXED_HEIGHT_PX  = 420          # table pixel height
+FIXED_HEIGHT_IN  = 5.2          # bar chart inches (≈ 420px at 80 dpi)
+
 col_tbl, col_bar = st.columns([2, 3])
 
 with col_tbl:
@@ -304,44 +307,47 @@ with col_tbl:
     d2["Avg MW"] = d2["Avg MW"].round(1)
     d2["Min MW"] = d2["Min MW"].round(1)
     d2["Max MW"] = d2["Max MW"].round(1)
-    tbl_height = min(36 * n_days + 38, 400)
-    st.dataframe(d2, use_container_width=True, height=tbl_height)
+    # always fixed height — scrolls internally if more than ~10 rows
+    st.dataframe(d2, use_container_width=True, height=FIXED_HEIGHT_PX)
     st.download_button(
         f"Download {n_days}-day CSV", d2.to_csv(),
         f"pjm_{n_days}day_forecast.csv", "text/csv")
 
 with col_bar:
-    # FIXED height = 4 inches, same as forecast chart above
-    fig_bar, ax_bar = plt.subplots(figsize=(7, 4))
+    fig_bar, ax_bar = plt.subplots(figsize=(7, FIXED_HEIGHT_IN))
     fig_bar.patch.set_facecolor(BG)
 
-    bc    = [TEAL if pd.Timestamp(d).dayofweek < 5 else PURPLE for d in daily["Date"]]
-    y_pos = np.arange(len(daily))
-    bars_b = ax_bar.barh(y_pos, daily["Avg MW"],
-                         color=bc, edgecolor="none", height=0.6)
+    bc     = [TEAL if pd.Timestamp(d).dayofweek < 5 else PURPLE for d in daily["Date"]]
+    y_pos  = np.arange(len(daily))
 
-    # value labels — right side outside the bar
+    # bar thickness: scale with days so bars never look too fat or thin
+    bar_h  = max(0.18, min(0.72, 0.82 - len(daily) * 0.018))
+    bars_b = ax_bar.barh(y_pos, daily["Avg MW"],
+                         color=bc, edgecolor="none", height=bar_h)
+
+    # value labels outside bar, right side
     for bar, val in zip(bars_b, daily["Avg MW"]):
-        ax_bar.text(bar.get_width() + daily["Avg MW"].max() * 0.01,
+        ax_bar.text(bar.get_width() + daily["Avg MW"].max() * 0.012,
                     bar.get_y() + bar.get_height() / 2,
                     f"{val:,.0f}", va="center", ha="left",
-                    fontsize=7.5, color="#ccc")
+                    fontsize=max(6, 9 - len(daily) // 8), color="#ccc")
 
     ax_bar.set_yticks(y_pos)
     ax_bar.set_yticklabels(
         [pd.Timestamp(d).strftime("%b %d") for d in daily["Date"]],
-        fontsize=8)
+        fontsize=max(6.5, 9 - len(daily) // 8))
     ax_bar.set_xlabel("Avg MW", fontsize=9)
     ax_bar.set_title("Daily average  (purple = weekend)", fontsize=9, pad=8)
     ax_bar.invert_yaxis()
-    ax_bar.set_xlim(0, daily["Avg MW"].max() * 1.18)
+    ax_bar.set_xlim(0, daily["Avg MW"].max() * 1.2)
+    ax_bar.tick_params(axis="y", pad=4)
 
     from matplotlib.patches import Patch
-    legend_els = [Patch(facecolor=TEAL,   label="Weekday"),
-                  Patch(facecolor=PURPLE, label="Weekend")]
-    ax_bar.legend(handles=legend_els, loc="lower right",
-                  facecolor=CARD, edgecolor=GRID,
-                  labelcolor="#ccc", fontsize=8)
+    ax_bar.legend(
+        handles=[Patch(facecolor=TEAL, label="Weekday"),
+                 Patch(facecolor=PURPLE, label="Weekend")],
+        loc="lower right", facecolor=CARD, edgecolor=GRID,
+        labelcolor="#ccc", fontsize=8)
     sty(ax_bar, fig_bar)
     st.pyplot(fig_bar, use_container_width=True)
     plt.close()
@@ -460,4 +466,4 @@ st.pyplot(fig_fi, use_container_width=True)
 plt.close()
 
 st.markdown("---")
-st.caption("P679 · PJM Hourly Energy Consumption Forecast · Gajender Singh · XGBoost Regressor")
+st.caption("P679 · PJM Hourly Energy Consumption Forecast · Group 1 · XGBoost Regressor")
