@@ -228,47 +228,6 @@ R2   = r2_score(yt, yp)
 MAPE = np.mean(np.abs((yt - yp) / yt)) * 100
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  SIDEBAR — collapsible, both sliders
-# ══════════════════════════════════════════════════════════════════════════════
-with st.sidebar:
-    st.markdown(
-        "<div style='font-size:0.88rem;font-weight:700;color:#00d4aa;"
-        "letter-spacing:.04em;margin-bottom:2px'>⚡ Controls</div>"
-        "<div style='font-size:0.6rem;color:#444;margin-bottom:12px;'>"
-        "Use sliders below to adjust charts</div>",
-        unsafe_allow_html=True)
-
-    # ── Slider 1: Forecast days ──────────────────────────────────────────────
-    st.markdown("<div class='sb-label'>Forecast horizon</div>", unsafe_allow_html=True)
-    n_days = st.slider("fc_days", min_value=1, max_value=30, value=7, step=1,
-                       label_visibility="collapsed")
-    st.markdown(
-        f"<div class='sb-val'>{n_days}</div>"
-        f"<div class='sb-unit'>{'day' if n_days == 1 else 'days'}</div>",
-        unsafe_allow_html=True)
-
-    st.markdown("<hr style='border:none;border-top:1px solid #1a1a30;margin:14px 0'>",
-                unsafe_allow_html=True)
-
-    # ── Slider 2: Actual vs Predicted hours ──────────────────────────────────
-    st.markdown("<div class='sb-label'>Actual vs predicted</div>", unsafe_allow_html=True)
-    n_hours = st.slider("avp_hrs", min_value=100, max_value=2000, value=500, step=100,
-                        label_visibility="collapsed")
-    st.markdown(
-        f"<div class='sb-val' style='font-size:1.5rem'>{n_hours}</div>"
-        f"<div class='sb-unit'>hours shown</div>",
-        unsafe_allow_html=True)
-
-    st.markdown("<hr style='border:none;border-top:1px solid #1a1a30;margin:14px 0'>",
-                unsafe_allow_html=True)
-    st.markdown(
-        "<div style='font-size:0.6rem;color:#333;line-height:1.9'>"
-        "Model: XGBoost Regressor<br>"
-        "Dataset: PJM Hourly MW<br>"
-        "Train / Test: 80 / 20</div>",
-        unsafe_allow_html=True)
-
-# ══════════════════════════════════════════════════════════════════════════════
 #  HEADER
 # ══════════════════════════════════════════════════════════════════════════════
 st.markdown("# ⚡ PJM Hourly Energy Consumption Forecast")
@@ -302,8 +261,13 @@ st.markdown("<div style='margin-bottom:4px'></div>", unsafe_allow_html=True)
 #  SECTION 2 — FORECAST CHART (first chart below KPIs)
 # ══════════════════════════════════════════════════════════════════════════════
 st.markdown(
-    f'<div class="sec">Energy Forecast — Next {n_days} Day{"s" if n_days > 1 else ""}</div>',
+    f'<div class="sec">Energy Forecast</div>',
     unsafe_allow_html=True)
+
+# Slider on the page — left column, small
+sl_col, _ = st.columns([1, 3])
+with sl_col:
+    n_days = st.slider("Forecast days (1 – 30)", min_value=1, max_value=30, value=7, step=1)
 
 fut_df, daily = build_forecast(df, xgb_model, le_day, le_season, n_days)
 
@@ -386,6 +350,10 @@ with col_bar:
 #  SECTION 3 — ACTUAL VS PREDICTED
 # ══════════════════════════════════════════════════════════════════════════════
 st.markdown('<div class="sec">Actual vs Predicted</div>', unsafe_allow_html=True)
+
+avp_col, _ = st.columns([1, 3])
+with avp_col:
+    n_hours = st.slider("Hours to display (100 – 2000)", min_value=100, max_value=2000, value=500, step=100)
 
 s = test_df.iloc[:n_hours]
 fig_avp, ax_avp = plt.subplots(figsize=(14, 4))
