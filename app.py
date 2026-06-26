@@ -30,6 +30,27 @@ st.markdown("""
     }
     [data-testid="stSidebar"] > div:first-child { padding: 1rem 0.8rem; }
 
+    /* Sidebar toggle arrow — always visible, teal coloured */
+    [data-testid="collapsedControl"] {
+        visibility: visible !important;
+        display: flex !important;
+        background: #00d4aa22 !important;
+        border: 1px solid #00d4aa55 !important;
+        border-radius: 0 8px 8px 0 !important;
+        color: #00d4aa !important;
+        z-index: 999 !important;
+    }
+    [data-testid="collapsedControl"] svg { fill: #00d4aa !important; }
+    section[data-testid="stSidebar"] > div > div > div > button {
+        background: #00d4aa22 !important;
+        border: 1px solid #00d4aa55 !important;
+        color: #00d4aa !important;
+        border-radius: 0 8px 8px 0 !important;
+    }
+    section[data-testid="stSidebar"] > div > div > div > button svg {
+        fill: #00d4aa !important;
+    }
+
     .kpi-wrap {
         background: #10102a;
         border: 1px solid #1e1e40;
@@ -312,32 +333,31 @@ with col_tbl:
         f"pjm_{n_days}day_forecast.csv", "text/csv")
 
 with col_bar:
-    # Fixed bar chart height: always matches table height so they align
-    bar_h_inches = max(3.0, n_days * 0.32)
-    fig_bar, ax_bar = plt.subplots(figsize=(7, bar_h_inches))
+    # FIXED height = 4 inches, same as forecast chart above
+    fig_bar, ax_bar = plt.subplots(figsize=(7, 4))
     fig_bar.patch.set_facecolor(BG)
 
-    bc     = [TEAL if pd.Timestamp(d).dayofweek < 5 else PURPLE for d in daily["Date"]]
-    y_pos  = np.arange(len(daily))
+    bc    = [TEAL if pd.Timestamp(d).dayofweek < 5 else PURPLE for d in daily["Date"]]
+    y_pos = np.arange(len(daily))
     bars_b = ax_bar.barh(y_pos, daily["Avg MW"],
-                         color=bc, edgecolor="none", height=0.58)
+                         color=bc, edgecolor="none", height=0.6)
 
-    # labels on bars
+    # value labels — right side outside the bar
     for bar, val in zip(bars_b, daily["Avg MW"]):
-        ax_bar.text(bar.get_width() - 80, bar.get_y() + bar.get_height() / 2,
-                    f"{val:,.0f}", va="center", ha="right",
-                    fontsize=7, color="#000", fontweight="600")
+        ax_bar.text(bar.get_width() + daily["Avg MW"].max() * 0.01,
+                    bar.get_y() + bar.get_height() / 2,
+                    f"{val:,.0f}", va="center", ha="left",
+                    fontsize=7.5, color="#ccc")
 
     ax_bar.set_yticks(y_pos)
     ax_bar.set_yticklabels(
         [pd.Timestamp(d).strftime("%b %d") for d in daily["Date"]],
-        fontsize=7.5)
+        fontsize=8)
     ax_bar.set_xlabel("Avg MW", fontsize=9)
     ax_bar.set_title("Daily average  (purple = weekend)", fontsize=9, pad=8)
     ax_bar.invert_yaxis()
-    ax_bar.set_xlim(0, daily["Avg MW"].max() * 1.12)
+    ax_bar.set_xlim(0, daily["Avg MW"].max() * 1.18)
 
-    # teal / purple legend patches
     from matplotlib.patches import Patch
     legend_els = [Patch(facecolor=TEAL,   label="Weekday"),
                   Patch(facecolor=PURPLE, label="Weekend")]
