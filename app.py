@@ -138,7 +138,7 @@ MAPE = np.mean(np.abs((yt - yp) / yt)) * 100
 #  HEADER
 # ════════════════════════════════════════════════════════════════════════════
 st.markdown("# ⚡ PJM Hourly Energy Consumption Forecast")
-st.markdown("**Project P679 · Submitted by Gajender Singh · Model: XGBoost Regressor**")
+st.markdown("**Project P679 · Submitted by Group 1 Dipak Sawakare & Gajender Singh · Model: XGBoost Regressor**")
 st.markdown("---")
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -334,4 +334,4 @@ sty(ax6, fig6); plt.tight_layout()
 st.pyplot(fig6); plt.close()
 
 st.markdown("---")
-st.caption("P679 · PJM Hourly Energy Consumption Forecast · Gajender Singh")
+st.caption("P679 · PJM Hourly Energy Consumption Forecast · Group 1- Dipak Sawakare & Gajender Singh")
