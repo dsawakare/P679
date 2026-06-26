@@ -3,8 +3,6 @@ import pandas as pd
 import numpy as np
 import joblib
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-import seaborn as sns
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -14,86 +12,81 @@ try:
 except ImportError:
     HAS_HOLIDAYS = False
 
-# ── Page Config ─────────────────────────────────────────────────────────────
+# ── Page Config ──────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="PJM Energy Forecast",
     page_icon="⚡",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="wide"
 )
 
-# ── Custom CSS ───────────────────────────────────────────────────────────────
+# ── CSS ──────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-    .metric-card {
-        background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%);
-        border: 1px solid #3d3d5c;
+    #MainMenu, footer, header { visibility: hidden; }
+    [data-testid="collapsedControl"] { display: none; }
+    .block-container { padding-top: 2rem; padding-bottom: 2rem; max-width: 1100px; }
+    .kpi-card {
+        background: #1e1e2e;
+        border: 1px solid #2d2d44;
         border-radius: 12px;
-        padding: 20px;
+        padding: 18px 20px;
         text-align: center;
-        margin: 5px;
     }
-    .metric-value { font-size: 2rem; font-weight: 700; color: #00d4aa; }
-    .metric-label { font-size: 0.85rem; color: #aaa; margin-top: 4px; }
-    .metric-sub   { font-size: 0.75rem; color: #666; margin-top: 2px; }
-    .section-header {
-        font-size: 1.2rem; font-weight: 600; color: #e0e0e0;
-        padding: 8px 0; border-bottom: 2px solid #00d4aa;
-        margin: 20px 0 15px 0;
+    .kpi-val   { font-size: 1.9rem; font-weight: 700; color: #00d4aa; }
+    .kpi-label { font-size: 0.82rem; color: #888; margin-top: 4px; }
+    .sec-header {
+        font-size: 1.05rem; font-weight: 600;
+        border-left: 3px solid #00d4aa;
+        padding-left: 10px;
+        margin: 32px 0 14px 0;
+        color: #e0e0e0;
     }
-    .stDataFrame { border-radius: 10px; }
-    [data-testid="stSidebar"] { background-color: #0f0f1a; }
 </style>
 """, unsafe_allow_html=True)
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
-PLT_BG   = "#0f0f1a"
-PLT_CARD = "#1e1e2e"
-PLT_GRID = "#2a2a3e"
-C_TEAL   = "#00d4aa"
-C_CORAL  = "#ff6b6b"
-C_AMBER  = "#ffd166"
-C_PURPLE = "#9b72cf"
-C_BLUE   = "#4ecdc4"
+# ── Colour palette ───────────────────────────────────────────────────────────
+BG     = "#0f0f1a"
+CARD   = "#1e1e2e"
+GRID   = "#2a2a3e"
+TEAL   = "#00d4aa"
+CORAL  = "#ff6b6b"
+AMBER  = "#ffd166"
+BLUE   = "#4ecdc4"
+PURPLE = "#9b72cf"
 
-def set_style(ax, fig=None):
-    if fig:
-        fig.patch.set_facecolor(PLT_BG)
-    ax.set_facecolor(PLT_CARD)
-    ax.tick_params(colors="#aaa", labelsize=9)
+def sty(ax, fig=None):
+    if fig: fig.patch.set_facecolor(BG)
+    ax.set_facecolor(CARD)
+    ax.tick_params(colors="#aaa", labelsize=8)
     ax.xaxis.label.set_color("#aaa")
     ax.yaxis.label.set_color("#aaa")
     ax.title.set_color("#e0e0e0")
-    for spine in ax.spines.values():
-        spine.set_edgecolor(PLT_GRID)
-    ax.grid(color=PLT_GRID, linewidth=0.5, alpha=0.6)
+    for sp in ax.spines.values(): sp.set_edgecolor(GRID)
+    ax.grid(color=GRID, linewidth=0.4, alpha=0.5)
 
-def get_season(month):
-    if month in [12, 1, 2]: return "Winter"
-    elif month in [3, 4, 5]: return "Spring"
-    elif month in [6, 7, 8]: return "Summer"
-    else: return "Autumn"
+def get_season(m):
+    if m in [12,1,2]:  return "Winter"
+    if m in [3,4,5]:   return "Spring"
+    if m in [6,7,8]:   return "Summer"
+    return "Autumn"
 
-# ── Load Resources ───────────────────────────────────────────────────────────
+# ── Load resources ───────────────────────────────────────────────────────────
 @st.cache_resource
 def load_models():
-    xgb  = joblib.load("xgb_model.pkl")
-    le_d = joblib.load("le_day.pkl")
-    le_s = joblib.load("le_season.pkl")
-    return xgb, le_d, le_s
+    return (joblib.load("xgb_model.pkl"),
+            joblib.load("le_day.pkl"),
+            joblib.load("le_season.pkl"))
 
 @st.cache_data
 def load_data():
     df = pd.read_excel("PJMW_MW_Hourly.xlsx")
     df["Datetime"] = pd.to_datetime(df["Datetime"])
     df = df.sort_values("Datetime").drop_duplicates("Datetime").reset_index(drop=True)
-
     if HAS_HOLIDAYS:
-        us_hol = hol_lib.US()
-        df["IsHoliday"] = df["Datetime"].dt.date.apply(lambda d: 1 if d in us_hol else 0)
+        uh = hol_lib.US()
+        df["IsHoliday"] = df["Datetime"].dt.date.apply(lambda d: 1 if d in uh else 0)
     else:
         df["IsHoliday"] = 0
-
     df["Hour"]      = df["Datetime"].dt.hour
     df["Day"]       = df["Datetime"].dt.day
     df["Month"]     = df["Datetime"].dt.month
@@ -102,501 +95,243 @@ def load_data():
     df["DayOfWeek"] = df["Datetime"].dt.day_name()
     df["IsWeekend"] = (df["Datetime"].dt.dayofweek >= 5).astype(int)
     df["Season"]    = df["Month"].apply(get_season)
-    df["Rolling_7_Day"] = df["PJMW_MW"].rolling(window=24 * 7).mean()
-    df = df.dropna()
-    return df
+    df["Rolling_7_Day"] = df["PJMW_MW"].rolling(window=168).mean()
+    return df.dropna()
 
 @st.cache_data
-def prepare_test(_df, _xgb, _le_d, _le_s):
+def get_test_preds(_df, _xgb, _le_d, _le_s):
     df = _df.copy()
-    df["DayOfWeek_enc"] = _le_d.transform(df["DayOfWeek"])
-    df["Season_enc"]    = _le_s.transform(df["Season"])
-
-    train_size = int(len(df) * 0.8)
-    test = df.iloc[train_size:].copy()
-
-    X_test = pd.DataFrame({
-        "Hour": test["Hour"], "Day": test["Day"],
-        "Month": test["Month"], "Year": test["Year"],
-        "Quarter": test["Quarter"], "DayOfWeek": test["DayOfWeek_enc"],
-        "IsWeekend": test["IsWeekend"], "Season": test["Season_enc"],
-        "IsHoliday": test["IsHoliday"], "Rolling_7_Day": test["Rolling_7_Day"],
+    df["dow_enc"] = _le_d.transform(df["DayOfWeek"])
+    df["sea_enc"] = _le_s.transform(df["Season"])
+    ts = int(len(df) * 0.8)
+    test = df.iloc[ts:].copy()
+    X = pd.DataFrame({
+        "Hour": test["Hour"], "Day": test["Day"], "Month": test["Month"],
+        "Year": test["Year"], "Quarter": test["Quarter"],
+        "DayOfWeek": test["dow_enc"], "IsWeekend": test["IsWeekend"],
+        "Season": test["sea_enc"], "IsHoliday": test["IsHoliday"],
+        "Rolling_7_Day": test["Rolling_7_Day"]
     })
-
-    y_pred = _xgb.predict(X_test)
-    test   = test.copy()
-    test["Predicted"] = y_pred
-    test["Residual"]  = test["PJMW_MW"] - y_pred
+    test = test.copy()
+    test["Predicted"] = _xgb.predict(X)
+    test["Residual"]  = test["PJMW_MW"] - test["Predicted"]
     return test
 
-# ── Load ─────────────────────────────────────────────────────────────────────
+# ── Init ─────────────────────────────────────────────────────────────────────
 try:
     xgb_model, le_day, le_season = load_models()
     df = load_data()
-    test_df = prepare_test(df, xgb_model, le_day, le_season)
+    test_df = get_test_preds(df, xgb_model, le_day, le_season)
 except Exception as e:
-    st.error(f"Error loading files: {e}")
+    st.error(f"Error: {e}")
     st.info("Make sure xgb_model.pkl, le_day.pkl, le_season.pkl and PJMW_MW_Hourly.xlsx are in the same folder.")
     st.stop()
 
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-y_true = test_df["PJMW_MW"].values
-y_pred_all = test_df["Predicted"].values
-MAE  = mean_absolute_error(y_true, y_pred_all)
-RMSE = np.sqrt(mean_squared_error(y_true, y_pred_all))
-R2   = r2_score(y_true, y_pred_all)
-MAPE = np.mean(np.abs((y_true - y_pred_all) / y_true)) * 100
+yt, yp = test_df["PJMW_MW"].values, test_df["Predicted"].values
+MAE  = mean_absolute_error(yt, yp)
+RMSE = np.sqrt(mean_squared_error(yt, yp))
+R2   = r2_score(yt, yp)
+MAPE = np.mean(np.abs((yt - yp) / yt)) * 100
 
-# ── Sidebar ───────────────────────────────────────────────────────────────────
-with st.sidebar:
-    st.markdown("## ⚡ PJM Energy Forecast")
-    st.markdown("---")
-    st.markdown("### Project Info")
-    st.markdown(f"**Model:** XGBoost Regressor")
-    st.markdown(f"**Dataset:** PJM Hourly Energy Consumption")
-    st.markdown("**Target Variable:** PJMW_MW")
-    st.markdown("**Features:** Hour, Season, IsWeekend, Rolling_7_Day, etc.")
-    st.markdown("---")
-    st.markdown("### Navigation")
-    page = st.radio("Go to", [
-        "Overview & Metrics",
-        "Actual vs Predicted",
-        "30-Day Forecast",
-        "Residual Analysis",
-        "Feature Importance",
-        "EDA Insights"
-    ])
-    st.markdown("---")
-    st.markdown("**Submitted by:** Gajender Singh")
-    st.markdown("**Project:** P679")
+# ════════════════════════════════════════════════════════════════════════════
+#  HEADER
+# ════════════════════════════════════════════════════════════════════════════
+st.markdown("# ⚡ PJM Hourly Energy Consumption Forecast")
+st.markdown("**Project P679 · Submitted by Gajender Singh · Model: XGBoost Regressor**")
+st.markdown("---")
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  PAGE 1 — OVERVIEW & METRICS
-# ═══════════════════════════════════════════════════════════════════════════
-if page == "Overview & Metrics":
-    st.markdown("# ⚡ PJM Hourly Energy Consumption Forecast")
-    st.markdown("**XGBoost model trained on historical hourly MW data to forecast next 30 days.**")
-    st.markdown("---")
+# ════════════════════════════════════════════════════════════════════════════
+#  SECTION 1 — KPI CARDS
+# ════════════════════════════════════════════════════════════════════════════
+c1, c2, c3, c4 = st.columns(4)
+for col, val, lbl in [
+    (c1, f"{MAE:,.0f} MW", "MAE — Mean Absolute Error"),
+    (c2, f"{RMSE:,.0f} MW", "RMSE — Root Mean Sq. Error"),
+    (c3, f"{R2:.3f}", "R² Score"),
+    (c4, f"{MAPE:.2f}%", "MAPE"),
+]:
+    col.markdown(f"""<div class="kpi-card">
+        <div class="kpi-val">{val}</div>
+        <div class="kpi-label">{lbl}</div>
+    </div>""", unsafe_allow_html=True)
 
-    # KPI row
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        st.markdown(f"""<div class="metric-card">
-            <div class="metric-value">{MAE:,.0f}</div>
-            <div class="metric-label">MAE (MW)</div>
-            <div class="metric-sub">Mean Absolute Error</div>
-        </div>""", unsafe_allow_html=True)
-    with c2:
-        st.markdown(f"""<div class="metric-card">
-            <div class="metric-value">{RMSE:,.0f}</div>
-            <div class="metric-label">RMSE (MW)</div>
-            <div class="metric-sub">Root Mean Sq. Error</div>
-        </div>""", unsafe_allow_html=True)
-    with c3:
-        st.markdown(f"""<div class="metric-card">
-            <div class="metric-value">{R2:.3f}</div>
-            <div class="metric-label">R² Score</div>
-            <div class="metric-sub">Variance Explained</div>
-        </div>""", unsafe_allow_html=True)
-    with c4:
-        st.markdown(f"""<div class="metric-card">
-            <div class="metric-value">{MAPE:.1f}%</div>
-            <div class="metric-label">MAPE</div>
-            <div class="metric-sub">Mean Abs. % Error</div>
-        </div>""", unsafe_allow_html=True)
+# ════════════════════════════════════════════════════════════════════════════
+#  SECTION 2 — ACTUAL VS PREDICTED
+# ════════════════════════════════════════════════════════════════════════════
+st.markdown('<div class="sec-header">Actual vs Predicted</div>', unsafe_allow_html=True)
 
-    st.markdown("<br>", unsafe_allow_html=True)
+n_hours = st.slider("Select number of hours to view", 100, 2000, 500, 100,
+                    key="avp_slider")
+samp = test_df.iloc[:n_hours]
 
-    # Dataset stats
-    st.markdown('<div class="section-header">Dataset Summary</div>', unsafe_allow_html=True)
-    col1, col2 = st.columns(2)
-    with col1:
-        stats = {
-            "Total Records": f"{len(df):,}",
-            "Date Range": f"{df['Datetime'].min().date()} → {df['Datetime'].max().date()}",
-            "Train Records": f"{int(len(df)*0.8):,}",
-            "Test Records":  f"{len(df) - int(len(df)*0.8):,}",
-            "Avg Consumption": f"{df['PJMW_MW'].mean():,.1f} MW",
-            "Peak Consumption": f"{df['PJMW_MW'].max():,.1f} MW",
-        }
-        st.dataframe(pd.DataFrame(stats.items(), columns=["Metric", "Value"]),
-                     use_container_width=True, hide_index=True)
-    with col2:
-        # Model comparison bar
-        fig, ax = plt.subplots(figsize=(6, 3.5))
-        fig.patch.set_facecolor(PLT_BG)
-        ax.set_facecolor(PLT_CARD)
-        models = ["Holt-Winters", "ARIMA", "Random Forest", "XGBoost"]
-        rmses  = [1136.68, 1050.0, 620.0, RMSE]
-        colors = [PLT_GRID, PLT_GRID, C_BLUE, C_TEAL]
-        bars   = ax.barh(models, rmses, color=colors, edgecolor="none", height=0.55)
-        ax.bar_label(bars, fmt="%.0f", padding=4, color="#ccc", fontsize=9)
-        ax.set_xlabel("RMSE (MW)", color="#aaa", fontsize=9)
-        ax.set_title("Model Comparison (RMSE)", color="#e0e0e0", fontsize=10, pad=8)
-        set_style(ax, fig)
-        ax.invert_yaxis()
-        plt.tight_layout()
-        st.pyplot(fig)
-        plt.close()
+fig, ax = plt.subplots(figsize=(13, 4))
+ax.plot(samp["Datetime"], samp["PJMW_MW"],
+        color=TEAL, lw=0.9, label="Actual", alpha=0.9)
+ax.plot(samp["Datetime"], samp["Predicted"],
+        color=CORAL, lw=0.9, label="Predicted", alpha=0.85, ls="--")
+ax.set_xlabel("Date"); ax.set_ylabel("Energy (MW)")
+ax.set_title(f"Actual vs Predicted — first {n_hours} hours of test set", fontsize=10)
+ax.legend(facecolor=CARD, edgecolor=GRID, labelcolor="#ccc", fontsize=9)
+sty(ax, fig); plt.tight_layout()
+st.pyplot(fig); plt.close()
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  PAGE 2 — ACTUAL VS PREDICTED
-# ═══════════════════════════════════════════════════════════════════════════
-elif page == "Actual vs Predicted":
-    st.markdown("## Actual vs Predicted")
-    n_hours = st.slider("Hours to display", 200, 2000, 500, 100)
-    sample  = test_df.iloc[:n_hours]
+# ════════════════════════════════════════════════════════════════════════════
+#  SECTION 3 — 30-DAY FORECAST (slider 1–30)
+# ════════════════════════════════════════════════════════════════════════════
+st.markdown('<div class="sec-header">Energy Forecast</div>', unsafe_allow_html=True)
 
-    fig, ax = plt.subplots(figsize=(14, 4.5))
-    ax.plot(sample["Datetime"], sample["PJMW_MW"],
-            color=C_TEAL, linewidth=0.9, label="Actual", alpha=0.9)
-    ax.plot(sample["Datetime"], sample["Predicted"],
-            color=C_CORAL, linewidth=0.9, label="Predicted", alpha=0.85, linestyle="--")
-    ax.set_xlabel("Date", fontsize=10)
-    ax.set_ylabel("Energy (MW)", fontsize=10)
-    ax.set_title(f"Actual vs Predicted — First {n_hours} Hours of Test Set", fontsize=11)
-    ax.legend(facecolor=PLT_CARD, edgecolor=PLT_GRID, labelcolor="#ccc", fontsize=9)
-    set_style(ax, fig)
-    plt.tight_layout()
-    st.pyplot(fig)
-    plt.close()
+n_days = st.slider("Select forecast days", 1, 30, 7, 1, key="fc_slider")
+n_hrs  = n_days * 24
 
-    st.markdown('<div class="section-header">Prediction Error Distribution</div>',
-                unsafe_allow_html=True)
-    fig2, axes = plt.subplots(1, 2, figsize=(14, 4))
-    fig2.patch.set_facecolor(PLT_BG)
+last_date = df["Datetime"].max()
+fut_idx   = pd.date_range(start=last_date + pd.Timedelta(hours=1),
+                           periods=n_hrs, freq="h")
 
-    # Histogram
-    axes[0].hist(test_df["Residual"], bins=60, color=C_PURPLE,
-                 edgecolor="none", alpha=0.85)
-    axes[0].axvline(0, color=C_CORAL, linewidth=1.5, linestyle="--")
-    axes[0].set_xlabel("Prediction Error (MW)", fontsize=9)
-    axes[0].set_ylabel("Frequency", fontsize=9)
-    axes[0].set_title("Prediction Error Distribution", fontsize=10)
-    set_style(axes[0], fig2)
+if HAS_HOLIDAYS:
+    uh2 = hol_lib.US()
+    is_hol = [1 if d.date() in uh2 else 0 for d in fut_idx]
+else:
+    is_hol = [0] * n_hrs
 
-    # Scatter actual vs predicted
-    sample2 = test_df.sample(min(3000, len(test_df)), random_state=42)
-    axes[1].scatter(sample2["PJMW_MW"], sample2["Predicted"],
-                    alpha=0.25, s=4, color=C_TEAL)
-    mn = min(y_true.min(), y_pred_all.min())
-    mx = max(y_true.max(), y_pred_all.max())
-    axes[1].plot([mn, mx], [mn, mx], color=C_CORAL, linewidth=1.5, linestyle="--")
-    axes[1].set_xlabel("Actual (MW)", fontsize=9)
-    axes[1].set_ylabel("Predicted (MW)", fontsize=9)
-    axes[1].set_title("Actual vs Predicted Scatter", fontsize=10)
-    set_style(axes[1], fig2)
+last_roll = df["Rolling_7_Day"].iloc[-1]
 
-    plt.tight_layout()
-    st.pyplot(fig2)
-    plt.close()
+fut = pd.DataFrame({
+    "Datetime":     fut_idx,
+    "Hour":         fut_idx.hour,
+    "Day":          fut_idx.day,
+    "Month":        fut_idx.month,
+    "Year":         fut_idx.year,
+    "Quarter":      fut_idx.quarter,
+    "DayOfWeek":    fut_idx.day_name(),
+    "IsWeekend":    (fut_idx.dayofweek >= 5).astype(int),
+    "Season":       [get_season(m) for m in fut_idx.month],
+    "IsHoliday":    is_hol,
+    "Rolling_7_Day": last_roll,
+})
+fut["dow_enc"] = le_day.transform(fut["DayOfWeek"])
+fut["sea_enc"] = le_season.transform(fut["Season"])
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  PAGE 3 — 30-DAY FORECAST
-# ═══════════════════════════════════════════════════════════════════════════
-elif page == "30-Day Forecast":
-    st.markdown("## 30-Day Energy Forecast")
-    st.markdown("Forecast generated from the **last known date** in the dataset using XGBoost.")
+X_fut = pd.DataFrame({
+    "Hour": fut["Hour"], "Day": fut["Day"], "Month": fut["Month"],
+    "Year": fut["Year"], "Quarter": fut["Quarter"],
+    "DayOfWeek": fut["dow_enc"], "IsWeekend": fut["IsWeekend"],
+    "Season": fut["sea_enc"], "IsHoliday": fut["IsHoliday"],
+    "Rolling_7_Day": fut["Rolling_7_Day"]
+})
+fut["Forecast_MW"] = xgb_model.predict(X_fut)
+fut["Date"] = fut["Datetime"].dt.date
 
-    last_date   = df["Datetime"].max()
-    future_idx  = pd.date_range(start=last_date + pd.Timedelta(hours=1),
-                                periods=720, freq="h")
+daily = (fut.groupby("Date")["Forecast_MW"]
+           .agg(["mean","min","max"])
+           .reset_index()
+           .rename(columns={"mean":"Avg MW","min":"Min MW","max":"Max MW"}))
 
-    if HAS_HOLIDAYS:
-        us_hol = hol_lib.US()
-        is_holiday = [1 if d.date() in us_hol else 0 for d in future_idx]
-    else:
-        is_holiday = [0] * 720
+# Forecast line chart
+fig2, ax2 = plt.subplots(figsize=(13, 4))
+ax2.plot(fut["Datetime"], fut["Forecast_MW"],
+         color=AMBER, lw=0.9, alpha=0.9)
+ax2.fill_between(fut["Datetime"], fut["Forecast_MW"],
+                 alpha=0.12, color=AMBER)
+ax2.set_xlabel("Date"); ax2.set_ylabel("Forecast (MW)")
+ax2.set_title(f"{n_days}-Day Hourly Energy Consumption Forecast", fontsize=10)
+sty(ax2, fig2); plt.tight_layout()
+st.pyplot(fig2); plt.close()
 
-    last_rolling = df["Rolling_7_Day"].iloc[-1]
+# Daily summary table
+st.markdown(f"**Daily summary — {n_days} day(s)**")
+daily_show = daily.copy()
+daily_show.index = range(1, len(daily_show)+1)
+daily_show.index.name = "Day"
+daily_show["Avg MW"] = daily_show["Avg MW"].round(1)
+daily_show["Min MW"] = daily_show["Min MW"].round(1)
+daily_show["Max MW"] = daily_show["Max MW"].round(1)
+st.dataframe(daily_show, use_container_width=True)
 
-    future_df = pd.DataFrame({
-        "Datetime":     future_idx,
-        "Hour":         future_idx.hour,
-        "Day":          future_idx.day,
-        "Month":        future_idx.month,
-        "Year":         future_idx.year,
-        "Quarter":      future_idx.quarter,
-        "DayOfWeek":    future_idx.day_name(),
-        "IsWeekend":    (future_idx.dayofweek >= 5).astype(int),
-        "Season":       [get_season(m) for m in future_idx.month],
-        "IsHoliday":    is_holiday,
-        "Rolling_7_Day": last_rolling,
-    })
+csv_data = daily_show.to_csv()
+st.download_button(f"Download {n_days}-day forecast CSV",
+                   csv_data, f"pjm_{n_days}day_forecast.csv", "text/csv")
 
-    future_df["DayOfWeek_enc"] = le_day.transform(future_df["DayOfWeek"])
-    future_df["Season_enc"]    = le_season.transform(future_df["Season"])
+# ════════════════════════════════════════════════════════════════════════════
+#  SECTION 4 — RESIDUAL ANALYSIS (best single chart)
+# ════════════════════════════════════════════════════════════════════════════
+st.markdown('<div class="sec-header">Residual Analysis</div>', unsafe_allow_html=True)
 
-    X_future = pd.DataFrame({
-        "Hour": future_df["Hour"], "Day": future_df["Day"],
-        "Month": future_df["Month"], "Year": future_df["Year"],
-        "Quarter": future_df["Quarter"], "DayOfWeek": future_df["DayOfWeek_enc"],
-        "IsWeekend": future_df["IsWeekend"], "Season": future_df["Season_enc"],
-        "IsHoliday": future_df["IsHoliday"], "Rolling_7_Day": future_df["Rolling_7_Day"],
-    })
+fig3, ax3 = plt.subplots(figsize=(13, 4))
+ax3.hist(test_df["Residual"], bins=80, color=PURPLE, edgecolor="none", alpha=0.85)
+ax3.axvline(0, color=CORAL, lw=1.8, ls="--", label="Zero error")
+ax3.axvline(test_df["Residual"].mean(), color=AMBER, lw=1.4, ls=":",
+            label=f"Mean error ({test_df['Residual'].mean():.1f} MW)")
+ax3.set_xlabel("Prediction Error (MW)")
+ax3.set_ylabel("Frequency")
+ax3.set_title("Prediction Error Distribution — how far off are the forecasts?", fontsize=10)
+ax3.legend(facecolor=CARD, edgecolor=GRID, labelcolor="#ccc", fontsize=9)
+sty(ax3, fig3); plt.tight_layout()
+st.pyplot(fig3); plt.close()
 
-    forecast = xgb_model.predict(X_future)
-    future_df["Forecast_MW"] = forecast
+r1, r2, r3 = st.columns(3)
+r1.metric("Mean Error",      f"{test_df['Residual'].mean():.1f} MW")
+r2.metric("Std Deviation",   f"{test_df['Residual'].std():.1f} MW")
+r3.metric("Error within ±500 MW",
+          f"{(np.abs(test_df['Residual']) <= 500).mean()*100:.1f}%")
 
-    # Daily summary
-    future_df["Date"] = future_df["Datetime"].dt.date
-    daily = future_df.groupby("Date")["Forecast_MW"].agg(["mean","min","max"]).reset_index()
-    daily.columns = ["Date","Avg MW","Min MW","Max MW"]
+# ════════════════════════════════════════════════════════════════════════════
+#  SECTION 5 — MODEL EVALUATION
+# ════════════════════════════════════════════════════════════════════════════
+st.markdown('<div class="sec-header">Model Evaluation</div>', unsafe_allow_html=True)
 
-    # Line chart
-    fig, ax = plt.subplots(figsize=(14, 4.5))
-    ax.plot(future_df["Datetime"], future_df["Forecast_MW"],
-            color=C_AMBER, linewidth=0.9, alpha=0.9)
-    ax.fill_between(future_df["Datetime"], future_df["Forecast_MW"],
-                    alpha=0.15, color=C_AMBER)
-    ax.set_xlabel("Date", fontsize=10)
-    ax.set_ylabel("Forecasted Energy (MW)", fontsize=10)
-    ax.set_title("30-Day Hourly Energy Consumption Forecast", fontsize=11)
-    set_style(ax, fig)
-    plt.tight_layout()
-    st.pyplot(fig)
-    plt.close()
+col_a, col_b = st.columns([1, 1])
 
-    # Daily bar chart
-    st.markdown('<div class="section-header">Daily Average Forecast</div>',
-                unsafe_allow_html=True)
-    fig2, ax2 = plt.subplots(figsize=(14, 4))
-    fig2.patch.set_facecolor(PLT_BG)
-    bar_colors = [C_TEAL if i % 2 == 0 else C_BLUE for i in range(len(daily))]
-    ax2.bar(range(len(daily)), daily["Avg MW"], color=bar_colors,
-            edgecolor="none", width=0.7)
-    ax2.set_xticks(range(0, len(daily), 3))
-    ax2.set_xticklabels([str(d) for d in daily["Date"].iloc[::3]],
-                        rotation=30, fontsize=8)
-    ax2.set_ylabel("Avg MW", fontsize=9)
-    ax2.set_title("Daily Average Forecasted Consumption (30 Days)", fontsize=10)
-    set_style(ax2, fig2)
-    plt.tight_layout()
-    st.pyplot(fig2)
-    plt.close()
+with col_a:
+    # Model comparison bar
+    fig4, ax4 = plt.subplots(figsize=(6, 3.5))
+    fig4.patch.set_facecolor(BG)
+    models_list = ["Holt-Winters", "ARIMA", "Random Forest", "XGBoost"]
+    rmse_vals   = [1136.68, 1050.0, 620.0, round(RMSE, 1)]
+    bar_cols    = [GRID, GRID, BLUE, TEAL]
+    bars = ax4.barh(models_list, rmse_vals, color=bar_cols, edgecolor="none", height=0.5)
+    ax4.bar_label(bars, fmt="%.0f", padding=4, color="#ccc", fontsize=9)
+    ax4.set_xlabel("RMSE (MW)")
+    ax4.set_title("Model Comparison — RMSE", fontsize=10)
+    ax4.invert_yaxis()
+    sty(ax4, fig4); plt.tight_layout()
+    st.pyplot(fig4); plt.close()
 
-    # 30-day daily table only
-    st.markdown('<div class="section-header">30-Day Forecast Summary (Daily)</div>',
-                unsafe_allow_html=True)
-    daily_display = daily.copy()
-    daily_display.index = range(1, len(daily_display) + 1)
-    daily_display.index.name = "Day"
-    daily_display["Avg MW"]   = daily_display["Avg MW"].round(1)
-    daily_display["Min MW"]   = daily_display["Min MW"].round(1)
-    daily_display["Max MW"]   = daily_display["Max MW"].round(1)
-    daily_display["Range MW"] = (daily_display["Max MW"] - daily_display["Min MW"]).round(1)
-    st.dataframe(daily_display, use_container_width=True, height=740)
+with col_b:
+    # Actual vs predicted scatter
+    fig5, ax5 = plt.subplots(figsize=(6, 3.5))
+    fig5.patch.set_facecolor(BG)
+    samp2 = test_df.sample(min(2000, len(test_df)), random_state=42)
+    ax5.scatter(samp2["PJMW_MW"], samp2["Predicted"],
+                alpha=0.2, s=4, color=TEAL)
+    mn, mx = min(yt.min(), yp.min()), max(yt.max(), yp.max())
+    ax5.plot([mn, mx], [mn, mx], color=CORAL, lw=1.5, ls="--")
+    ax5.set_xlabel("Actual (MW)")
+    ax5.set_ylabel("Predicted (MW)")
+    ax5.set_title("Actual vs Predicted Scatter", fontsize=10)
+    sty(ax5, fig5); plt.tight_layout()
+    st.pyplot(fig5); plt.close()
 
-    csv = daily_display.to_csv()
-    st.download_button("Download 30-Day Forecast CSV", csv,
-                       "pjm_30day_forecast.csv", "text/csv")
+# ════════════════════════════════════════════════════════════════════════════
+#  SECTION 6 — FEATURE IMPORTANCE
+# ════════════════════════════════════════════════════════════════════════════
+st.markdown('<div class="sec-header">Feature Importance</div>', unsafe_allow_html=True)
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  PAGE 4 — RESIDUAL ANALYSIS
-# ═══════════════════════════════════════════════════════════════════════════
-elif page == "Residual Analysis":
-    st.markdown("## Residual Analysis")
+feat_names = ["Hour","Day","Month","Year","Quarter",
+              "DayOfWeek","IsWeekend","Season","IsHoliday","Rolling_7_Day"]
+fi_vals = xgb_model.feature_importances_
+fi_df   = pd.DataFrame({"Feature": feat_names, "Importance": fi_vals})
+fi_df   = fi_df.sort_values("Importance", ascending=True)
 
-    fig, axes = plt.subplots(2, 2, figsize=(14, 8))
-    fig.patch.set_facecolor(PLT_BG)
-    sample = test_df.sample(min(3000, len(test_df)), random_state=42)
+fig6, ax6 = plt.subplots(figsize=(13, 4))
+bar_c = [TEAL if v >= np.median(fi_vals) else BLUE for v in fi_df["Importance"]]
+bars6 = ax6.barh(fi_df["Feature"], fi_df["Importance"],
+                 color=bar_c, edgecolor="none", height=0.55)
+ax6.bar_label(bars6, fmt="%.3f", padding=4, color="#ccc", fontsize=9)
+ax6.set_xlabel("Importance Score")
+ax6.set_title("XGBoost Feature Importance — which features drive the forecast most?", fontsize=10)
+sty(ax6, fig6); plt.tight_layout()
+st.pyplot(fig6); plt.close()
 
-    # 1. Residuals over time
-    axes[0,0].plot(test_df["Datetime"].iloc[::10],
-                   test_df["Residual"].iloc[::10],
-                   color=C_TEAL, linewidth=0.6, alpha=0.7)
-    axes[0,0].axhline(0, color=C_CORAL, linewidth=1.2, linestyle="--")
-    axes[0,0].set_title("Residuals Over Time", fontsize=10)
-    axes[0,0].set_xlabel("Date", fontsize=9)
-    axes[0,0].set_ylabel("Residual (MW)", fontsize=9)
-    set_style(axes[0,0])
-
-    # 2. Residual histogram
-    axes[0,1].hist(test_df["Residual"], bins=70, color=C_PURPLE,
-                   edgecolor="none", alpha=0.85)
-    axes[0,1].axvline(0, color=C_CORAL, linewidth=1.5, linestyle="--")
-    axes[0,1].axvline(test_df["Residual"].mean(), color=C_AMBER,
-                      linewidth=1.2, linestyle=":")
-    axes[0,1].set_title("Residual Distribution", fontsize=10)
-    axes[0,1].set_xlabel("Error (MW)", fontsize=9)
-    axes[0,1].set_ylabel("Frequency", fontsize=9)
-    set_style(axes[0,1])
-
-    # 3. Residuals by hour
-    hourly_res = test_df.groupby("Hour")["Residual"].mean()
-    colors_hr  = [C_CORAL if v < 0 else C_TEAL for v in hourly_res]
-    axes[1,0].bar(hourly_res.index, hourly_res.values,
-                  color=colors_hr, edgecolor="none", width=0.7)
-    axes[1,0].axhline(0, color="#aaa", linewidth=0.8, linestyle="--")
-    axes[1,0].set_title("Mean Residual by Hour of Day", fontsize=10)
-    axes[1,0].set_xlabel("Hour", fontsize=9)
-    axes[1,0].set_ylabel("Mean Error (MW)", fontsize=9)
-    set_style(axes[1,0])
-
-    # 4. Residuals by month
-    monthly_res = test_df.groupby("Month")["Residual"].mean()
-    colors_mo   = [C_CORAL if v < 0 else C_TEAL for v in monthly_res]
-    axes[1,1].bar(monthly_res.index, monthly_res.values,
-                  color=colors_mo, edgecolor="none", width=0.7)
-    axes[1,1].axhline(0, color="#aaa", linewidth=0.8, linestyle="--")
-    axes[1,1].set_xticks(range(1, 13))
-    axes[1,1].set_xticklabels(
-        ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
-        fontsize=8)
-    axes[1,1].set_title("Mean Residual by Month", fontsize=10)
-    axes[1,1].set_xlabel("Month", fontsize=9)
-    axes[1,1].set_ylabel("Mean Error (MW)", fontsize=9)
-    set_style(axes[1,1])
-
-    plt.suptitle("Residual Analysis", color="#e0e0e0", fontsize=12, y=1.01)
-    plt.tight_layout()
-    st.pyplot(fig)
-    plt.close()
-
-    # Stats
-    st.markdown('<div class="section-header">Residual Statistics</div>',
-                unsafe_allow_html=True)
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Mean Error", f"{test_df['Residual'].mean():.2f} MW")
-    c2.metric("Std Dev",    f"{test_df['Residual'].std():.2f} MW")
-    c3.metric("Max Overestimate", f"{test_df['Residual'].min():.0f} MW")
-    c4.metric("Max Underestimate", f"{test_df['Residual'].max():.0f} MW")
-
-# ═══════════════════════════════════════════════════════════════════════════
-#  PAGE 5 — FEATURE IMPORTANCE
-# ═══════════════════════════════════════════════════════════════════════════
-elif page == "Feature Importance":
-    st.markdown("## Feature Importance")
-
-    feat_names = ["Hour","Day","Month","Year","Quarter",
-                  "DayOfWeek","IsWeekend","Season","IsHoliday","Rolling_7_Day"]
-    importances = xgb_model.feature_importances_
-    fi_df = pd.DataFrame({"Feature": feat_names, "Importance": importances})
-    fi_df = fi_df.sort_values("Importance", ascending=True)
-
-    fig, ax = plt.subplots(figsize=(10, 5))
-    fig.patch.set_facecolor(PLT_BG)
-    bar_colors = [C_TEAL if v >= fi_df["Importance"].median() else C_BLUE
-                  for v in fi_df["Importance"]]
-    bars = ax.barh(fi_df["Feature"], fi_df["Importance"],
-                   color=bar_colors, edgecolor="none", height=0.6)
-    ax.bar_label(bars, fmt="%.3f", padding=4, color="#ccc", fontsize=9)
-    ax.set_xlabel("Importance Score", fontsize=10)
-    ax.set_title("XGBoost Feature Importance", fontsize=11)
-    set_style(ax, fig)
-    plt.tight_layout()
-    st.pyplot(fig)
-    plt.close()
-
-    st.markdown('<div class="section-header">Top Important Features</div>',
-                unsafe_allow_html=True)
-    fi_sorted = fi_df.sort_values("Importance", ascending=False).reset_index(drop=True)
-    fi_sorted.index += 1
-    fi_sorted["Importance"] = fi_sorted["Importance"].round(4)
-    fi_sorted["Cumulative %"] = (fi_sorted["Importance"].cumsum() /
-                                  fi_sorted["Importance"].sum() * 100).round(1)
-    st.dataframe(fi_sorted, use_container_width=True)
-
-    # Insight cards
-    st.markdown('<div class="section-header">Key Insights</div>',
-                unsafe_allow_html=True)
-    top3 = fi_sorted["Feature"].iloc[:3].tolist()
-    insights = {
-        "IsWeekend": "Weekend vs weekday is the strongest signal — demand drops significantly on weekends.",
-        "Hour": "Hour of day drives consumption peaks (morning & evening rush hours).",
-        "Rolling_7_Day": "The 7-day rolling average captures weekly demand trends effectively.",
-        "Season": "Seasonal patterns reflect summer AC loads and winter heating cycles.",
-        "IsHoliday": "Holidays show notable demand reduction similar to weekends.",
-    }
-    cols = st.columns(min(3, len(top3)))
-    for i, feat in enumerate(top3):
-        with cols[i]:
-            st.info(f"**{feat}**\n\n{insights.get(feat, 'Important predictor for energy demand.')}")
-
-# ═══════════════════════════════════════════════════════════════════════════
-#  PAGE 6 — EDA INSIGHTS
-# ═══════════════════════════════════════════════════════════════════════════
-elif page == "EDA Insights":
-    st.markdown("## EDA Insights")
-
-    fig, axes = plt.subplots(2, 2, figsize=(14, 8))
-    fig.patch.set_facecolor(PLT_BG)
-
-    # 1. Avg consumption by hour
-    hourly = df.groupby("Hour")["PJMW_MW"].mean()
-    axes[0,0].plot(hourly.index, hourly.values, color=C_TEAL,
-                   linewidth=2, marker="o", markersize=4)
-    axes[0,0].fill_between(hourly.index, hourly.values, alpha=0.15, color=C_TEAL)
-    axes[0,0].set_title("Avg Consumption by Hour", fontsize=10)
-    axes[0,0].set_xlabel("Hour of Day", fontsize=9)
-    axes[0,0].set_ylabel("Avg MW", fontsize=9)
-    set_style(axes[0,0])
-
-    # 2. Avg by month
-    monthly = df.groupby("Month")["PJMW_MW"].mean()
-    bar_cols = [C_AMBER if v > monthly.mean() else C_BLUE for v in monthly]
-    axes[0,1].bar(monthly.index, monthly.values, color=bar_cols,
-                  edgecolor="none", width=0.7)
-    axes[0,1].set_xticks(range(1, 13))
-    axes[0,1].set_xticklabels(
-        ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
-        fontsize=8)
-    axes[0,1].set_title("Avg Consumption by Month", fontsize=10)
-    axes[0,1].set_xlabel("Month", fontsize=9)
-    axes[0,1].set_ylabel("Avg MW", fontsize=9)
-    set_style(axes[0,1])
-
-    # 3. Weekday vs weekend
-    wd_labels = ["Weekday", "Weekend"]
-    wd_means  = [df[df["IsWeekend"]==0]["PJMW_MW"].mean(),
-                 df[df["IsWeekend"]==1]["PJMW_MW"].mean()]
-    axes[1,0].bar(wd_labels, wd_means, color=[C_TEAL, C_CORAL],
-                  edgecolor="none", width=0.45)
-    for i, v in enumerate(wd_means):
-        axes[1,0].text(i, v + 10, f"{v:,.0f}", ha="center",
-                       fontsize=9, color="#ccc")
-    axes[1,0].set_title("Weekday vs Weekend Avg Consumption", fontsize=10)
-    axes[1,0].set_ylabel("Avg MW", fontsize=9)
-    set_style(axes[1,0])
-
-    # 4. Season boxplot
-    season_order = ["Spring", "Summer", "Autumn", "Winter"]
-    season_colors = [C_TEAL, C_AMBER, C_CORAL, C_PURPLE]
-    data_by_season = [df[df["Season"]==s]["PJMW_MW"].values for s in season_order]
-    bp = axes[1,1].boxplot(data_by_season, labels=season_order, patch_artist=True,
-                            medianprops=dict(color="white", linewidth=1.5),
-                            whiskerprops=dict(color="#aaa"),
-                            capprops=dict(color="#aaa"),
-                            flierprops=dict(marker=".", color="#555", markersize=2))
-    for patch, color in zip(bp["boxes"], season_colors):
-        patch.set_facecolor(color)
-        patch.set_alpha(0.7)
-    axes[1,1].set_title("Consumption by Season", fontsize=10)
-    axes[1,1].set_ylabel("MW", fontsize=9)
-    set_style(axes[1,1])
-
-    plt.suptitle("Exploratory Data Analysis", color="#e0e0e0", fontsize=12, y=1.01)
-    plt.tight_layout()
-    st.pyplot(fig)
-    plt.close()
-
-    # Yearly trend
-    st.markdown('<div class="section-header">Yearly Consumption Trend</div>',
-                unsafe_allow_html=True)
-    yearly = df.groupby("Year")["PJMW_MW"].mean().reset_index()
-    fig2, ax2 = plt.subplots(figsize=(10, 3.5))
-    fig2.patch.set_facecolor(PLT_BG)
-    ax2.plot(yearly["Year"], yearly["PJMW_MW"], color=C_TEAL,
-             linewidth=2, marker="o", markersize=6)
-    ax2.fill_between(yearly["Year"], yearly["PJMW_MW"], alpha=0.15, color=C_TEAL)
-    for _, row in yearly.iterrows():
-        ax2.annotate(f"{row['PJMW_MW']:,.0f}", (row["Year"], row["PJMW_MW"]),
-                     textcoords="offset points", xytext=(0, 8),
-                     ha="center", fontsize=8, color="#ccc")
-    ax2.set_title("Yearly Average Energy Consumption", fontsize=10)
-    ax2.set_xlabel("Year", fontsize=9)
-    ax2.set_ylabel("Avg MW", fontsize=9)
-    set_style(ax2, fig2)
-    plt.tight_layout()
-    st.pyplot(fig2)
-    plt.close()
+st.markdown("---")
+st.caption("P679 · PJM Hourly Energy Consumption Forecast · Gajender Singh")
