@@ -30,24 +30,38 @@ st.markdown("""
     }
     [data-testid="stSidebar"] > div:first-child { padding: 1rem 0.8rem; }
 
-    /* Sidebar toggle arrow — always visible, teal coloured */
+    /* Sidebar toggle — force visible, teal, left-anchored */
     [data-testid="collapsedControl"] {
         visibility: visible !important;
+        opacity: 1 !important;
         display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        background: #00d4aa !important;
+        border-radius: 0 8px 8px 0 !important;
+        width: 24px !important;
+        min-height: 60px !important;
+        position: fixed !important;
+        left: 0 !important;
+        top: 45% !important;
+        z-index: 99999 !important;
+        cursor: pointer !important;
+        box-shadow: 2px 0 8px #00d4aa44 !important;
+    }
+    [data-testid="collapsedControl"] svg {
+        fill: #08081a !important;
+        width: 14px !important;
+        height: 14px !important;
+    }
+    /* Also style the collapse button inside the open sidebar */
+    [data-testid="stSidebarCollapseButton"] button,
+    [data-testid="stSidebar"] button[kind="header"] {
         background: #00d4aa22 !important;
         border: 1px solid #00d4aa55 !important;
-        border-radius: 0 8px 8px 0 !important;
-        color: #00d4aa !important;
-        z-index: 999 !important;
+        border-radius: 6px !important;
     }
-    [data-testid="collapsedControl"] svg { fill: #00d4aa !important; }
-    section[data-testid="stSidebar"] > div > div > div > button {
-        background: #00d4aa22 !important;
-        border: 1px solid #00d4aa55 !important;
-        color: #00d4aa !important;
-        border-radius: 0 8px 8px 0 !important;
-    }
-    section[data-testid="stSidebar"] > div > div > div > button svg {
+    [data-testid="stSidebarCollapseButton"] button svg,
+    [data-testid="stSidebar"] button[kind="header"] svg {
         fill: #00d4aa !important;
     }
 
@@ -219,9 +233,9 @@ MAPE = np.mean(np.abs((yt - yp) / yt)) * 100
 with st.sidebar:
     st.markdown(
         "<div style='font-size:0.88rem;font-weight:700;color:#00d4aa;"
-        "letter-spacing:.04em;margin-bottom:2px'>⚡ PJM Controls</div>"
-        "<div style='font-size:0.6rem;color:#333;margin-bottom:12px'>"
-        "P679 · Gajender Singh</div>",
+        "letter-spacing:.04em;margin-bottom:2px'>⚡ Controls</div>"
+        "<div style='font-size:0.6rem;color:#444;margin-bottom:12px;'>"
+        "Use sliders below to adjust charts</div>",
         unsafe_allow_html=True)
 
     # ── Slider 1: Forecast days ──────────────────────────────────────────────
