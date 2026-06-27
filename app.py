@@ -162,8 +162,10 @@ def get_test(_df, _xgb, _ld, _ls):
     df = _df.copy()
     df["de"] = _ld.transform(df["DayOfWeek"])
     df["se"] = _ls.transform(df["Season"])
-    ts   = int(len(df) * 0.8)
-    test = df.iloc[ts:].copy()
+    # Requirement: split LAST YEAR as test set
+    last_date       = df["Datetime"].max()
+    test_start_date = last_date - pd.DateOffset(years=1)
+    test = df[df["Datetime"] >= test_start_date].copy()
     X = pd.DataFrame({
         "Hour":test["Hour"],"Day":test["Day"],"Month":test["Month"],
         "Year":test["Year"],"Quarter":test["Quarter"],
@@ -356,6 +358,17 @@ with col_bar:
 #  SECTION 3 — ACTUAL VS PREDICTED
 # ══════════════════════════════════════════════════════════════════════════════
 st.markdown('<div class="sec">Actual vs Predicted</div>', unsafe_allow_html=True)
+st.markdown(
+    "<div style='font-size:0.78rem;color:#666;margin:-6px 0 10px;'>"
+    "The model was tested on unseen data (last 20% of dataset). "
+    "Teal = real energy consumption · Coral dashed = what the model predicted. "
+    "Closer the lines, better the model.</div>",
+    unsafe_allow_html=True)
+st.markdown(
+    "<div style='font-size:0.78rem;color:#666;margin:-6px 0 10px 0;'>"
+    "Model tested on unseen data (last 20% of dataset) · "
+    "Teal = actual consumption &nbsp;|&nbsp; Coral dashed = model prediction"
+    "</div>", unsafe_allow_html=True)
 
 avp_col, _ = st.columns([1, 3])
 with avp_col:
@@ -381,6 +394,16 @@ plt.close()
 #  SECTION 4 — RESIDUAL ANALYSIS
 # ══════════════════════════════════════════════════════════════════════════════
 st.markdown('<div class="sec">Residual Analysis</div>', unsafe_allow_html=True)
+st.markdown(
+    "<div style='font-size:0.78rem;color:#666;margin:-6px 0 10px;'>"
+    "Residual = Actual − Predicted. A good model has errors clustered near zero with no strong bias. "
+    "The tighter the distribution around zero, the more reliable the forecast.</div>",
+    unsafe_allow_html=True)
+st.markdown(
+    "<div style='font-size:0.78rem;color:#666;margin:-6px 0 10px 0;'>"
+    "Residual = Actual − Predicted · "
+    "Errors clustered near zero mean the model is consistent and unbiased"
+    "</div>", unsafe_allow_html=True)
 
 fig_res, ax_res = plt.subplots(figsize=(14, 3.8))
 ax_res.hist(test_df["Residual"], bins=90,
